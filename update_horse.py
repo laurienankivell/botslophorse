@@ -27,13 +27,13 @@ search_terms = [
 subreddits = "ukpolitics+unitedkingdom+uknews+britishproblems+AskUK+London+bbcnews+BritishPolitics+Scotland+MHoCConservatives+tories+reformUK"
 
 # --- STEP 3: COLLECTION & CLEANING (Your Logic) ---
-# Change this line to 48 hours
-forty_eight_hours_ago = datetime.now() - timedelta(hours=48)
+# Changed this line to 1 week
+a_week_ago = datetime.now() - timedelta(days=7)
 posts = [] # <--- FIXED: Added this so the list exists before the loop starts
 
 for term in search_terms:
-    for submission in reddit.subreddit(subreddits).search(term, limit=5):
-        if datetime.fromtimestamp(submission.created_utc) >= forty_eight_hours_ago:
+    for submission in reddit.subreddit(subreddits).search(term, limit=10):
+        if datetime.fromtimestamp(submission.created_utc) >= a_week_ago:
             posts.append({
                 "id": submission.id,
                 "title": submission.title,
@@ -48,8 +48,8 @@ for submission_id in df_posts["id"]:
     submission_obj = reddit.submission(id=submission_id)
     submission_obj.comments.replace_more(limit=0)
     for comment in submission_obj.comments.list():
-        # Only keep the comment if it was posted in the last 48 hours
-        if datetime.fromtimestamp(comment.created_utc) >= forty_eight_hours_ago:
+        # Only keep if comment made in last week
+        if datetime.fromtimestamp(comment.created_utc) >= a_week_ago:
             comments.append({
                 "comment_body": comment.body,
                 "created_utc": comment.created_utc
