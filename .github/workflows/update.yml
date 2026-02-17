@@ -1,7 +1,7 @@
 name: Botslop Update
 on:
- push:                # Add this line
-    branches: [v2-automation] # And this line
+  push:
+    branches: [v2-automation]
   schedule:
     - cron: '0 0,12 * * *'
   workflow_dispatch:
