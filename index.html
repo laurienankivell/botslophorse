@@ -8,13 +8,11 @@
             background: #222; 
             color: #0f0; 
             text-align: center; 
-            /* Remove margin from body to maximize image size */
             margin: 0; 
             padding: 0;
-            overflow: hidden; /* Prevent scrollbars */
+            overflow: hidden; 
         }
         #horse-img { 
-            /* Increase image size to dominate the viewport */
             max-width: 90vw; 
             max-height: 80vh; 
             width: auto; 
@@ -23,12 +21,12 @@
             margin: 20px auto;
         }
         .controls {
-            position: fixed; /* Keep buttons visible */
+            position: fixed; 
             bottom: 0;
             left: 0;
             right: 0;
             padding: 15px;
-            background: rgba(34, 34, 34, 0.9); /* Semi-transparent background for buttons */
+            background: rgba(34, 34, 34, 0.9); 
         }
         button { 
             padding: 15px 30px; 
@@ -60,32 +58,30 @@
 
     <script>
         let comments = [];
-        let commentIndex = 0; // Index to track the current position
+        let commentIndex = 0; 
         const synth = window.speechSynthesis;
         const horseImg = document.getElementById('horse-img');
 
-        // 1. Load the Data from the JSON file
-        fetch('botslop_data.json')
+        // --- 1. Load the Data from the NEW automated JSON file ---
+        fetch('live_horse_data.json') 
             .then(response => response.json())
             .then(data => {
-                // Use a standard array since we are now controlling playback by index
-                comments = data.comments; 
-                console.log("Data Loaded. " + comments.length + " comments ready.");
+                // This maps the 'text' field from your Python JSON into our speech list
+                comments = data.map(item => item.text); 
+                console.log("Automation Sync Complete. " + comments.length + " rants ready.");
             })
-            .catch(err => console.error("Error loading JSON:", err));
+            .catch(err => {
+                console.error("Error loading JSON. Bot might not have run yet.", err);
+            });
 
-        // 2. Control Functions
+        // --- 2. Control Functions ---
         function speakComment(text) {
-            // Cancel any current speech before starting a new one
             synth.cancel(); 
 
             const utterance = new SpeechSynthesisUtterance(text);
-            
-            // ⭐️ CHANGE 1: Slower Reading Rate (0.7 is a good dramatic pace)
             utterance.rate = 0.7; 
             utterance.pitch = 0.8; 
 
-            // --- ANIMATION LOGIC ---
             utterance.onstart = () => {
                 horseImg.src = "horse_talking.gif"; 
             };
@@ -100,41 +96,37 @@
         }
 
         function playNext() {
-            // If the horse is currently talking, cancel it first to prevent overlap
             synth.cancel(); 
 
+            if (comments.length === 0) {
+                alert("The horse has nothing to say yet. Check if live_horse_data.json exists!");
+                return;
+            }
+
             if (commentIndex < comments.length) {
-                // Get the comment at the current index and speak it
                 const nextComment = comments[commentIndex];
                 commentIndex++; 
                 speakComment(nextComment);
             } else {
                 horseImg.src = "horse_silent.png";
-                commentIndex = 0; // Loop back to the start
-                alert("ERROR - Rants Finished. Looping back to start.");
+                commentIndex = 0; // Loop back
+                alert("Rants Finished. Looping back to start.");
             }
         }
 
-        // ⭐️ CHANGE 2: Next Rant Button Logic
         function stopAndSkip() {
-            // Stops current speech and forces the playback loop to advance
             synth.cancel(); 
-            // The onend callback is not called when cancelled, so we manually call playNext()
-            // We need a slight delay to allow the cancel command to process fully
             setTimeout(playNext, 100); 
         }
 
-        // ⭐️ CHANGE 3: Stop Ranting Button Logic
         function stopAndSilence() {
-            synth.cancel(); // Stops all queued and current speech
-            horseImg.src = "horse_silent.png"; // Silence the animation
+            synth.cancel(); 
+            horseImg.src = "horse_silent.png"; 
         }
         
-        // Initial button click starts the process
         function startRanting() {
             playNext();
         }
-
     </script>
 </body>
 </html>
