@@ -1,0 +1,30 @@
+name: Botslop Update
+on:
+  schedule:
+    - cron: '0 0,12 * * *' # Runs at Midnight and Noon UTC
+  workflow_dispatch:      # Adds a manual 'Run' button
+
+jobs:
+  run-ai:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install deps
+        run: pip install -r requirements.txt
+      - name: Update Horse
+        env:
+          REDDIT_CLIENT_ID: ${{ secrets.REDDIT_CLIENT_ID }}
+          REDDIT_CLIENT_SECRET: ${{ secrets.REDDIT_CLIENT_SECRET }}
+          REDDIT_USER_AGENT: ${{ secrets.REDDIT_USER_AGENT }}
+        run: python update_horse.py
+      - name: Commit Data
+        run: |
+          git config user.name "BotslopBot"
+          git config user.email "actions@github.com"
+          git add live_horse_data.json
+          git commit -m "Automated update" || exit 0
+          git push
