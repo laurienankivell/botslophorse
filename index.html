@@ -59,6 +59,7 @@
     <script>
         let comments = [];
         let commentIndex = 0; 
+        let isStopped = true; // 🚩 The "Safety Switch"
         const synth = window.speechSynthesis;
         const horseImg = document.getElementById('horse-img');
 
@@ -68,19 +69,19 @@
             .then(data => {
                 // This maps the 'text' field from your Python JSON into our speech list
                 comments = data.map(item => item.text); 
-                console.log("Automation Sync Complete. " + comments.length + " rants ready.");
+                console.log("Horse is loaded with " + comments.length + " rants.");
             })
             .catch(err => {
-                console.error("Error loading JSON. Bot might not have run yet.", err);
-            });
+                console.error("Data failed to load.", err);
+            })
 
         // --- 2. Control Functions ---
         function speakComment(text) {
             synth.cancel(); 
 
             const utterance = new SpeechSynthesisUtterance(text);
-            utterance.rate = 0.7; 
-            utterance.pitch = 0.8; 
+            utterance.rate = 0.8; 
+            utterance.pitch = 0.7; 
 
             utterance.onstart = () => {
                 horseImg.src = "horse_talking.gif"; 
@@ -88,44 +89,45 @@
 
             utterance.onend = () => {
                 horseImg.src = "horse_silent.png"; 
-                // Automatically move to the next comment after a pause
-                setTimeout(playNext, 1000); 
+                // 🛑 ONLY move to the next rant if the user hasn't pressed 'Stop'
+                if (!isStopped) {
+                    setTimeout(playNext, 2000); // 2-second breath between rants
+                }
             };
 
             synth.speak(utterance);
         }
 
         function playNext() {
-            synth.cancel(); 
+            if (comments.length === 0) return;
 
-            if (comments.length === 0) {
-                alert("The horse has nothing to say yet. Check if live_horse_data.json exists!");
-                return;
+            // If we hit the end, loop back to the start
+            if (commentIndex >= comments.length) {
+                commentIndex = 0;
             }
 
-            if (commentIndex < comments.length) {
-                const nextComment = comments[commentIndex];
-                commentIndex++; 
-                speakComment(nextComment);
-            } else {
-                horseImg.src = "horse_silent.png";
-                commentIndex = 0; // Loop back
-                alert("Rants Finished. Looping back to start.");
+            const nextComment = comments[commentIndex];
+            commentIndex++; 
+            speakComment(nextComment);
+        }
+
+        // --- 3. Button Actions ---
+        function startRanting() {
+            if (isStopped) {
+                isStopped = false; // Turn the switch ON
+                playNext();
             }
         }
 
         function stopAndSkip() {
-            synth.cancel(); 
-            setTimeout(playNext, 100); 
+            isStopped = false; // Keep the flow going
+            synth.cancel(); // This will trigger 'onend' and move us to the next automatically
         }
 
         function stopAndSilence() {
-            synth.cancel(); 
+            isStopped = true; // 🛑 Turn the switch OFF
+            synth.cancel(); // Silence the voice
             horseImg.src = "horse_silent.png"; 
-        }
-        
-        function startRanting() {
-            playNext();
         }
     </script>
 </body>
