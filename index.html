@@ -12,14 +12,29 @@
             padding: 0;
             overflow: hidden; 
         }
-        #horse-img { 
-            max-width: 90vw; 
-            max-height: 80vh; 
-            width: auto; 
-            height: auto; 
-            border: 5px solid #0f0; 
-            margin: 20px auto;
-        }
+        #horse-img {
+    /* 1. LOCK THE HEIGHT */
+    /* This forces both images to be exactly 50% of the screen height. */
+    /* Want it bigger? Change to 60vh. Smaller? Change to 40vh. */
+    height: 60vh; 
+
+    /* 2. AUTO WIDTH */
+    /* This tells the browser: "Calculate the width automatically based on the height I just set." */
+    width: auto; 
+
+    /* 3. CENTER IT */
+    display: block;
+    margin: 20px auto;
+    
+    /* 4. SAFETY NET */
+    /* This ensures that if the images have slightly different shapes, */
+    /* they won't stretch or squish. They will fit inside the box perfectly. */
+    object-fit: contain; 
+    
+    /* Optional: Keeps the border consistent */
+    border: 5px solid #0f0;
+    background: #000;
+}
         .controls {
             position: fixed; 
             bottom: 0;
