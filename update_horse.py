@@ -32,14 +32,14 @@ for term in search_terms:
                 "selftext": submission.selftext
             })
 
-# Safety Check 1: Stop if no posts found
 if not posts:
-    print("⚠️ No posts found. exiting.")
+    print("⚠️ No posts found in search. exiting.")
     exit(0)
 
 df_posts = pd.DataFrame(posts).drop_duplicates(subset='id')
-comments = []
+print(f"DEBUG: Found {len(df_posts)} unique posts.")
 
+comments = []
 for submission_id in df_posts["id"]:
     submission_obj = reddit.submission(id=submission_id)
     submission_obj.comments.replace_more(limit=0)
@@ -47,43 +47,50 @@ for submission_id in df_posts["id"]:
         if datetime.fromtimestamp(comment.created_utc) >= a_week_ago:
             comments.append({"comment_body": comment.body})
 
-# Safety Check 2: Stop if no comments found
 if not comments:
     print("⚠️ No comments found in those posts. exiting.")
     exit(0)
 
-df_comments = pd.DataFrame(comments)
+print(f"DEBUG: Scraped {len(comments)} raw comments.")
 
-# --- STEP 4: FILTERS ---
-uk_keywords = [r"\bUK\b", r"\bBritain\b", r"\bBritish\b", r"\bNigel Farage\b", r"\bReform UK\b"]
-migration_pattern = r"\b(?:migrant|migration|asylum|refugee|illegals|invasion)\b"
+# --- STEP 4: RELAXED FILTERS ---
+# We know these are from UK subreddits, so let's focus mostly on the migration keywords
+migration_pattern = r"\b(?:migrant|migration|asylum|refugee|illegals|invasion|boats|border|farage|reform)\b"
 
 def clean_text(text):
     text = re.sub(r"http\S+|www\S+|https\S+", "", str(text))
     text = re.sub(r"[^A-Za-z0-9\s]", "", text)
     return text.lower()
 
+df_comments = pd.DataFrame(comments)
 df_comments["clean_text_comment"] = df_comments["comment_body"].apply(clean_text)
+
+# We are now just checking if it's relevant to the TOPIC. 
+# The "UK" context is already implied by the subreddits we chose.
 df_mig2 = df_comments[
-    (df_comments["comment_body"].str.contains('|'.join(uk_keywords), flags=re.I, na=False)) & 
-    (df_comments["clean_text_comment"].str.contains(migration_pattern, regex=True, na=False))
+    df_comments["clean_text_comment"].str.contains(migration_pattern, regex=True, na=False)
 ].copy()
 
+print(f"DEBUG: {len(df_mig2)} comments passed the topic filter.")
+
 # --- STEP 5: AI (STANCEBERTA) ---
-# FIX: Initialize new_entries at the top so it ALWAYS exists
 new_entries = []
 df_final = pd.DataFrame()
 device = 0 if torch.cuda.is_available() else -1
 stance_classifier = pipeline("text-classification", model="eevvgg/StanceBERTa", device=device, truncation=True)
 
 if not df_mig2.empty:
+    print("AI is classifying rants...")
     raw_results = []
-    for result in tqdm(stance_classifier(df_mig2['clean_text_comment'].tolist(), batch_size=32), total=len(df_mig2)):
-        raw_results.append(result)
+    # Using small chunks to avoid memory errors in the cloud
+    texts = df_mig2['clean_text_comment'].tolist()
+    results = stance_classifier(texts, batch_size=16)
 
-    df_mig2['label'] = [r['label'] for r in raw_results]
-    df_mig2['score'] = [r['score'] for r in raw_results]
-    df_final = df_mig2[(df_mig2['label'] == 'negative') & (df_mig2['score'] >= 0.75)]
+    df_mig2['label'] = [r['label'] for r in results]
+    df_mig2['score'] = [r['score'] for r in results]
+    
+    # We want 'negative' stance towards migration
+    df_final = df_mig2[(df_mig2['label'] == 'negative') & (df_mig2['score'] >= 0.70)]
 
     # --- STEP 6: OUTPUT ---
     if not df_final.empty:
