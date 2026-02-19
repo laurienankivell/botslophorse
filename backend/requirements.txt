@@ -1,0 +1,5 @@
+flask
+praw
+pandas
+torch
+transformers
