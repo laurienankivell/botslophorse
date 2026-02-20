@@ -4,10 +4,16 @@ import praw
 import torch
 import sqlite3
 import pandas as pd
+import logging
+
 from datetime import datetime, timedelta
 from transformers import pipeline
+from flask_cors import CORS
+
+logging.basicConfig( level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",)
 
 app = Flask(__name__)
+CORS(app)
 
 # --- Database Setup ---
 DB_FILE = "comments.db"
@@ -41,58 +47,111 @@ subreddits = "ukpolitics+unitedkingdom+uknews+britishproblems+AskUK+London+bbcne
 
 migration_pattern = r"\b(?:migrant|migration|asylum|refugee|illegals|invasion|boats|border|farage|reform)\b"
 
+stance_classifier = None
+
+def get_classifier():
+    global stance_classifier
+    if stance_classifier is None:
+        logging.info("Initializing stance classifier...")
+        try:
+            device = 0 if torch.cuda.is_available() else -1
+            stance_classifier = pipeline(
+                "text-classification",
+                model="eevvgg/StanceBERTa",
+                device=device,
+                truncation=True
+            )
+            logging.info("Classifier loaded successfully")
+        except Exception as e:
+            logging.error(f"Failed to load classifier: {e}")
+            return None
+    return stance_classifier
+
+
 def clean_text(text):
     text = re.sub(r"http\S+|www\S+|https\S+", "", str(text))
     text = re.sub(r"[^A-Za-z0-9\s]", "", text)
     return text.lower()
 
 device = 0 if torch.cuda.is_available() else -1
-stance_classifier = pipeline("text-classification", model="eevvgg/StanceBERTa", device=device, truncation=True)
 
 # --- API Endpoints ---
 @app.route("/scrape", methods=["GET"])
 def scrape():
+    logging.info("=== Starting scrape request ===")
     a_week_ago = datetime.now() - timedelta(days=7)
-    posts = []
+    logging.info(f"Looking for posts newer than {a_week_ago}")
 
+    posts = []
     for term in search_terms:
+        logging.info(f"Searching for term: {term}")
         for submission in reddit.subreddit(subreddits).search(term, limit=15):
-            if datetime.fromtimestamp(submission.created_utc) >= a_week_ago:
+            created = datetime.fromtimestamp(submission.created_utc)
+            logging.debug(f"Found submission {submission.id} created at {created}")
+            if created >= a_week_ago:
                 posts.append(submission.id)
+    logging.info(f"Collected {len(posts)} posts matching search terms")
 
     comments = []
     for submission_id in posts:
+        logging.info(f"Fetching comments for post {submission_id}")
         submission_obj = reddit.submission(id=submission_id)
         submission_obj.comments.replace_more(limit=0)
         for comment in submission_obj.comments.list():
-            if datetime.fromtimestamp(comment.created_utc) >= a_week_ago:
+            created = datetime.fromtimestamp(comment.created_utc)
+            if created >= a_week_ago:
                 comments.append(comment.body)
+    logging.info(f"Collected {len(comments)} raw comments")
 
     df_comments = pd.DataFrame(comments, columns=["comment_body"])
+    logging.info("Cleaning comment text")
     df_comments["clean_text_comment"] = df_comments["comment_body"].apply(clean_text)
-    df_mig2 = df_comments[df_comments["clean_text_comment"].str.contains(migration_pattern, regex=True, na=False)]
+
+    df_mig2 = df_comments[
+        df_comments["clean_text_comment"].str.contains(migration_pattern, regex=True, na=False)
+    ]
+    logging.info(f"{len(df_mig2)} comments matched migration keywords")
 
     if df_mig2.empty:
+        logging.info("No relevant comments found after filtering")
         return jsonify({"message": "No relevant comments found."})
 
-    results = stance_classifier(df_mig2["clean_text_comment"].tolist(), batch_size=16)
+    logging.info("Loading stance classifier")
+    classifier = get_classifier()
+    if classifier is None:
+        return jsonify({"error": "Classifier not available"}), 500
+
+    results = classifier(df_mig2["clean_text_comment"].tolist(), batch_size=16)
+
+    logging.info(f"Classifying {len(df_mig2)} comments")
+    results = classifier(df_mig2["clean_text_comment"].tolist(), batch_size=16)
+
     df_mig2["label"] = [r["label"] for r in results]
     df_mig2["score"] = [r["score"] for r in results]
+    logging.info("Classification complete")
 
     df_final = df_mig2[(df_mig2["label"] == "negative") & (df_mig2["score"] >= 0.70)]
+    logging.info(f"{len(df_final)} comments classified as negative with score >= 0.70")
 
+    logging.info("Inserting data into DB")
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     for _, row in df_final.iterrows():
         try:
-            c.execute("INSERT INTO comments (text, label, score) VALUES (?, ?, ?)",
-                      (row["comment_body"], row["label"], row["score"]))
+            c.execute(
+                "INSERT INTO comments (text, label, score) VALUES (?, ?, ?)",
+                (row["comment_body"], row["label"], row["score"]),
+            )
+            logging.debug(f"Inserted comment: {row['comment_body'][:80]}...")
         except sqlite3.IntegrityError:
-            pass
+            logging.debug("Duplicate comment skipped")
     conn.commit()
     conn.close()
+    logging.info("DB insert complete")
 
+    logging.info("=== Scrape request finished ===")
     return jsonify({"message": f"Processed {len(df_mig2)} comments. Added {len(df_final)} anti-migrant ones."})
+
 
 @app.route("/health", methods=["GET"])
 def health_check():

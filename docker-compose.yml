@@ -5,13 +5,21 @@ services:
     build: ./backend
     container_name: reddit-backend
     ports:
-      - "5050:5050"
+      - "5050:5000"   # host 5050 → container 5000
     volumes:
+      - ./backend:/app   # mount source code for live reload
       - ./backend/data:/app/data   # persist SQLite DB
     environment:
+      - FLASK_APP=app.py
+      - FLASK_ENV=development
       - REDDIT_CLIENT_ID=${REDDIT_CLIENT_ID}
       - REDDIT_CLIENT_SECRET=${REDDIT_CLIENT_SECRET}
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   frontend:
     build: ./frontend
@@ -21,7 +29,10 @@ services:
     stdin_open: true
     tty: true
     environment:
-      - CHOKIDAR_USEPOLLING=true   # helps React dev server inside Docker
+      - CHOKIDAR_USEPOLLING=true
+      - REACT_APP_API_URL=http://localhost:5050
+    volumes:
+      - ./frontend:/app   # mount frontend source for hot reload
     depends_on:
       - backend
     restart: unless-stopped

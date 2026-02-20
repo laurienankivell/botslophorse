@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { getData } from "./services/api";
 import "./App.css";
 
 function App() {
@@ -10,17 +11,18 @@ function App() {
   const synth = window.speechSynthesis;
 
   useEffect(() => {
-    fetch("live_horse_data.json")
-      .then((response) => response.json())
-      .then((data) => {
+    async function loadData() {
+      try {
+        const data = await getData();
         setComments(data.map((item) => item.text));
-        console.log("Horse is loaded with " + data.length + " rants.");
-      })
-      .catch((err) => {
+        console.log("Backend loaded with " + data.length + " comments.");
+      } catch (err) {
         console.error("Data failed to load.", err);
-      });
+      }
+    }
+    loadData();
   }, []);
-
+  
   const speakComment = (text) => {
     synth.cancel();
 
