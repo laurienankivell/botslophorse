@@ -1,12 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { getData } from "./services/api";
 import "./App.css";
 
 function App() {
+  // UI State (things we want to trigger visual re-renders)
   const [comments, setComments] = useState([]);
-  const [commentIndex, setCommentIndex] = useState(0);
-  const [isStopped, setIsStopped] = useState(true);
   const [horseImg, setHorseImg] = useState("horse_silent.png");
+
+  // Logic Refs (live variables for the speech synthesizer)
+  const commentsRef = useRef([]);
+  const commentIndexRef = useRef(0);
+  const isStoppedRef = useRef(true);
 
   const synth = window.speechSynthesis;
 
@@ -14,8 +18,13 @@ function App() {
     async function loadData() {
       try {
         const data = await getData();
-        setComments(data.map((item) => item.text));
-        console.log("Backend loaded with " + data.length + " comments.");
+        const textArray = data.map((item) => item.text);
+        
+        // Update both the UI state and our logic ref
+        setComments(textArray);
+        commentsRef.current = textArray; 
+        
+        console.log("Backend loaded with " + textArray.length + " comments.");
       } catch (err) {
         console.error("Data failed to load.", err);
       }
@@ -36,7 +45,9 @@ function App() {
 
     utterance.onend = () => {
       setHorseImg("horse_silent.png");
-      if (!isStopped) {
+      
+      // Look at the live REF, not the state!
+      if (!isStoppedRef.current) {
         setTimeout(playNext, 2000);
       }
     };
@@ -45,32 +56,37 @@ function App() {
   };
 
   const playNext = () => {
-    if (comments.length === 0) return;
+    const currentList = commentsRef.current;
+    if (currentList.length === 0) return;
 
-    let nextIndex = commentIndex;
-    if (nextIndex >= comments.length) {
-      nextIndex = 0;
+    let nextIndex = commentIndexRef.current;
+    if (nextIndex >= currentList.length) {
+      nextIndex = 0; // Loop back to the start
     }
 
-    const nextComment = comments[nextIndex];
-    setCommentIndex(nextIndex + 1);
+    const nextComment = currentList[nextIndex];
+    
+    // Increment the ref for the next round
+    commentIndexRef.current = nextIndex + 1; 
+    
     speakComment(nextComment);
   };
 
   const startRanting = () => {
-    if (isStopped) {
-      setIsStopped(false);
+    if (isStoppedRef.current) {
+      isStoppedRef.current = false;
       playNext();
     }
   };
 
   const stopAndSkip = () => {
-    setIsStopped(false);
+    // Simply cancelling the current speech will trigger the 'onend' 
+    // event, which automatically fires the next rant!
     synth.cancel();
   };
 
   const stopAndSilence = () => {
-    setIsStopped(true);
+    isStoppedRef.current = true;
     synth.cancel();
     setHorseImg("horse_silent.png");
   };

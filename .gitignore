@@ -1,1 +1,8 @@
+# Mac System Files
+.DS_Store
+
+# Python Cache
+__pycache__/
+
+# No secrets uploaded
 .env

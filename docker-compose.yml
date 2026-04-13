@@ -32,7 +32,8 @@ services:
       - CHOKIDAR_USEPOLLING=true
       - REACT_APP_API_URL=http://localhost:5050
     volumes:
-      - ./frontend:/app   # mount frontend source for hot reload
+      - ./frontend:/app             # mount frontend source for hot reload
+      - /app/node_modules           # ADD THIS: protects the installed modules 
     depends_on:
       - backend
     restart: unless-stopped
