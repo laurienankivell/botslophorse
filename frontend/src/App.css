@@ -82,3 +82,64 @@ button {
 button:hover {
   background: #fff;
 }
+/* Base Sticker Styles */
+.starburst-sticker {
+  position: absolute; /* This lets us pin them anywhere */
+  width: 180px;
+  height: 180px;
+  filter: drop-shadow(5px 5px 0px rgba(0,0,0,0.2));
+  z-index: 1000;
+}
+
+.starburst-sticker svg {
+  width: 100%;
+  height: 100%;
+}
+
+.sticker-text {
+  position: absolute;
+  top: 42.5%; /* Slightly raised to account for the droplet */
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: black;
+  font-family: Arial, Helvetica, sans-serif;
+  width: 80%;
+}
+
+.sticker-text p {
+  margin: 0;
+  font-weight: bold;
+  font-size: 1rem;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.sticker-text .value {
+  font-size: 2rem;
+  font-weight: 900;
+  margin-top: 5px;
+}
+
+/* --- INDEPENDENT PLACEMENT CLASSES --- */
+
+/* Put the Today sticker in the top right, tilted left */
+.position-top-right {
+  top: 20px;
+  right: 20px;
+}
+.tilt-left {
+  transform: rotate(-8deg);
+}
+
+/* Put the Archive sticker somewhere else, tilted right */
+.position-bottom-left {
+  bottom: 20px;
+  left: 20px; 
+  /* ADD THESE TWO LINES TO MAKE IT BIGGER */
+  width: 250px; 
+  height: 250px;
+}
+.tilt-right {
+  transform: rotate(6deg);
+}

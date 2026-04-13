@@ -121,8 +121,6 @@ def scrape():
     if classifier is None:
         return jsonify({"error": "Classifier not available"}), 500
 
-    results = classifier(df_mig2["clean_text_comment"].tolist(), batch_size=16)
-
     logging.info(f"Classifying {len(df_mig2)} comments")
     results = classifier(df_mig2["clean_text_comment"].tolist(), batch_size=16)
 
@@ -175,6 +173,30 @@ def get_data():
 
     data = [{"text": r[0], "label": r[1], "score": r[2], "created_at": r[3]} for r in rows]
     return jsonify(data)
+# ---> PASTE THE NEW STATS ENDPOINT HERE <---
+@app.route("/stats", methods=["GET"])
+def get_stats():
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        c = conn.cursor()
+        
+        # Count rants added exactly today
+        c.execute("SELECT COUNT(*) FROM comments WHERE date(created_at) = date('now')")
+        rants_today = c.fetchone()[0]
+        
+        # Count total rants in the last 2 years
+        c.execute("SELECT COUNT(*) FROM comments WHERE created_at >= date('now', '-2 years')")
+        rants_two_years = c.fetchone()[0]
+        
+        conn.close()
+        
+        return jsonify({
+            "rants_today": rants_today,
+            "rants_two_years": rants_two_years
+        })
+    except Exception as e:
+        logging.error(f"Error fetching stats: {e}")
+        return jsonify({"rants_today": 0, "rants_two_years": 0}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5050)
